@@ -1,0 +1,53 @@
+set search_path to arms;
+drop function if exists paak_bima_yojana();
+
+create or replace function paak_bima_yojana( fid farmer.farmer_id%type , h_season harvest.season%type , h_year harvest.harvest_year%type )
+	returns beneficiary_of.financial_aid%type
+	
+as $BODY$
+declare 
+	aid beneficiary_of.financial_aid%type := 0;
+	prd_amount harvest.produced_amount%type;
+	prd_area harvest.production_area%type;
+	reg_prd_amount harvest.produced_amount%type;
+	reg_prd_area harvest.production_area%type;
+	crops_inc varchar[] := '{ "Cotton" , "Groundnut" , "Sugarcane" }';
+	lowest_price_offered offers.price%type;
+	
+	crp varchar[];
+	
+begin
+
+	foreach crp slice 1 in array crops_inc
+	loop		
+		select sum(produced_amount), sum(production_area)
+		into prd_amount, prd_area 
+		from farmer natural join land natural join harvest 
+		where farmer_id = fid and crop_name = crp[1] and season = h_season and harvest_year = h_year;
+		
+		prd_amount := coalesce( prd_amount , 0 ); 
+		prd_area := coalesce( prd_area , 0 ); 
+		
+		select sum(produced_amount), sum(production_area)
+		into reg_prd_amount, reg_prd_area
+		from harvest 
+		where crop_name = crp[1] and season = h_season and harvest_year = h_year;
+		
+		reg_prd_amount := coalesce( reg_prd_amount , 0 ); 
+		reg_prd_area := coalesce( reg_prd_area , 0 ); 
+		
+		select min(price)
+		into lowest_price_offered
+		from offers
+		where crop_name = crp[1] and season = h_season and offering_year = h_year;
+		
+		lowest_price_offered := coalesce( lowest_price_offered , 0 ); 
+		
+		if prd_area <> 0 and prd_amount/prd_area < reg_prd_amount/reg_prd_area then
+			aid = aid + (reg_prd_amount/reg_prd_area - prd_amount/prd_area) * prd_area * lowest_price_offered;
+		end if;
+	end loop;
+	
+	return aid;
+	
+end $BODY$ language 'plpgsql'

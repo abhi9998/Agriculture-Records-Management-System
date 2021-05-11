@@ -1,0 +1,85 @@
+set search_path to arms;
+drop function if exists beneficiary_list();
+
+create or replace function beneficiary_list( curr_year integer , curr_season harvest.season%type )
+	returns integer
+	
+as $BODY$
+declare 
+	total_renewed integer := 0;
+	aid beneficiary_of.financial_aid%type := 0;
+	
+	r record;
+begin
+
+	for r in
+	select farmer_id, yojana_name
+	from farmer, yojana
+	where applicable_till_year is null or applicable_till_year >= curr_year
+	loop
+		case r.yojana_name
+		when 'kishan_samridhi_yojana'::varchar then
+			select * into aid from kishan_samridhi_yojana( r.farmer_id );
+			if aid > 0 then
+				begin
+					insert into beneficiary_of values( r.farmer_id , r.yojana_name , curr_year , aid );
+					total_renewed := total_renewed + 1;
+				exception when unique_violation then
+        			raise notice 'violation % %', r.farmer_id , r.yojana_name;
+				end;
+			end if;
+			
+		when 'paak_bima_yojana'::varchar then
+			select * into aid from paak_bima_yojana( r.farmer_id , curr_season , curr_year );
+			if aid > 0 then
+				begin
+					insert into beneficiary_of values( r.farmer_id , r.yojana_name , curr_year , aid );
+					total_renewed := total_renewed + 1;
+				exception when unique_violation then
+        			raise notice 'violation % %', r.farmer_id , r.yojana_name;
+				end;
+			end if;
+			
+		when 'pest_control_yojana'::varchar then
+			select * into aid from pest_control_yojana( r.farmer_id , curr_season , curr_year );
+			if aid > 0 then
+				begin
+					insert into beneficiary_of values( r.farmer_id , r.yojana_name , curr_year , aid );
+					total_renewed := total_renewed + 1;
+				exception when unique_violation then
+        			raise notice 'violation % %', r.farmer_id , r.yojana_name;
+				end;
+			end if;
+			
+		when 'schichay_yojana_guj'::varchar then
+			select * into aid from schichay_yojana_guj( r.farmer_id );
+			if aid > 0 then
+				begin
+					insert into beneficiary_of values( r.farmer_id , r.yojana_name , curr_year , aid );
+					total_renewed := total_renewed + 1;
+				exception when unique_violation then
+        			raise notice 'violation % %', r.farmer_id , r.yojana_name;
+				end;
+			end if;
+			
+		when 'schichay_yojana_rajasthan'::varchar then
+			select * into aid from schichay_yojana_rajasthan( r.farmer_id );
+			if aid > 0 then
+				begin
+					insert into beneficiary_of values( r.farmer_id , r.yojana_name , curr_year , aid );
+					total_renewed := total_renewed + 1;
+				exception when unique_violation then
+        			raise notice 'violation % %', r.farmer_id , r.yojana_name;
+				end;
+			end if;
+		else
+		end case;
+	end loop;
+	
+	return total_renewed;
+	
+end $BODY$ language 'plpgsql';
+
+select beneficiary_list(2017,'winter');
+
+drop function beneficiary_list;

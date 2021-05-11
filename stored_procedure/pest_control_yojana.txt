@@ -1,0 +1,45 @@
+set search_path to arms;
+drop function if exists pest_control_yojana();
+
+create or replace function pest_control_yojana( fid farmer.farmer_id%type , h_season harvest.season%type , h_year harvest.harvest_year%type )
+	returns beneficiary_of.financial_aid%type
+	
+as $BODY$
+declare 
+	aid beneficiary_of.financial_aid%type := 0;
+	pr pesticide.price%type;
+	max_aid_amount beneficiary_of.financial_aid%type := 2500;
+	
+	prd record;
+	r record;
+begin
+
+	for prd in 
+	select survey_number, crop_name, production_area 
+	from farmer natural join land natural join harvest 
+	where farmer_id = fid and season = h_season and harvest_year = h_year
+	loop
+		for r in
+		select pest_name 
+		from crops natural join damages natural join present_in
+		where crop_name = prd.crop_name and survey_number = prd.survey_number
+		loop
+			pr := 0;
+			
+			select price into pr
+			from treated_by natural join pesticide
+			where pest_name = r.pest_name
+			order by array_position( array['Less','Moderate','Dangerous','Highly Dangerous']::varchar[] , pesticide.environmental_impact ), price
+			limit 1;
+			
+			pr := coalesce( pr , 0 );
+			
+			aid := aid + 2 * pr * prd.production_area * 0.1;
+		end loop;
+		
+		aid := least( aid , max_aid_amount );
+	end loop;
+	
+	return aid;
+	
+end $BODY$ language 'plpgsql'

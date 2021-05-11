@@ -1,0 +1,197 @@
+drop schema if exists arms cascade;
+create schema arms;
+set search_path to arms;
+
+create table States(
+    district varchar(20), 
+    state varchar(20) not null,
+	
+	primary key( district )
+);
+
+create table City(
+    city_Village varchar(20), 
+    district varchar(20), 
+    total_Population numeric(10) not null, 
+	
+    primary key( city_Village , district ), 
+    foreign key( district ) references States( district ) on delete cascade on update cascade,
+	
+	check( total_Population > 0 )
+);
+
+create table Farmer(
+    farmer_Id varchar(5),
+    farmer_Name varchar(20) not null, 
+    age smallint, 
+    total_Household_Income numeric(7),
+    number_Of_Earning_Members smallint,
+    number_Of_Nonearning_Members smallint,
+    city_Village varchar(20) not null, 
+    district varchar(20) not null,
+	
+	primary key( farmer_Id ),
+    foreign key( city_Village , district ) references City( city_Village , district ) on delete cascade on update cascade
+);
+
+create table Land(
+    survey_Number varchar(5),
+	farmer_Id varchar(5) not null,
+    irrigation_Method varchar(20), 
+    total_Cultivable_Area numeric(6,2) not null,
+    soil_Type varchar(20) not null, 
+    Nitrogen_Content numeric(3) not null,
+    Phosphorous_Content numeric(3) not null,
+    Potassium_Content numeric(3) not null,
+    city_Village varchar(20) not null, 
+    district varchar(20) not null,
+	
+	primary key( survey_Number ),
+    foreign key( city_Village , district ) references City( city_Village , district ) on delete cascade on update cascade, 
+    foreign key( farmer_Id ) references Farmer( farmer_Id ) on delete cascade on update cascade,
+	
+	check( Nitrogen_Content >= 0 and Phosphorous_Content >= 0 and Potassium_Content >= 0 and 
+		   	Nitrogen_Content <= 100 and Phosphorous_Content <= 100 and Potassium_Content <= 100 ),
+	check( total_Cultivable_Area > 0 )
+);
+
+create table Crops(
+    crop_Name varchar(20), 
+    favourable_Soil varchar(20) not null, 
+    favourable_Season varchar(20) not null, 
+    favourable_Nitrogen_Content numeric(3) not null, 
+    favourable_Phosphorous_Content numeric(3) not null, 
+    favourable_Potassium_Content numeric(3) not null,
+	
+	primary key( crop_Name ),
+	
+	check( favourable_Nitrogen_Content >= 0 and favourable_Phosphorous_Content >= 0 and favourable_Potassium_Content >= 0 and 
+		   	favourable_Nitrogen_Content <= 100 and favourable_Phosphorous_Content <= 100 and favourable_Potassium_Content <= 100 )
+);
+
+create table Marketing_Yard(
+	market_Id varchar(5),
+	market_Name varchar(20) not null,
+	city_Village varchar(20) not null,
+	district varchar(20) not null,
+	
+	primary key( market_Id ),
+	foreign key( city_Village , district ) references City( city_Village , district ) on delete cascade on update cascade
+);
+
+create table Harvest(
+    survey_Number varchar(5), 
+    crop_Name varchar(20), 
+    season varchar(20), 
+    harvest_Year integer, 
+    cost_Of_Production numeric(7) not null, 
+    produced_Amount numeric(7) not null, 
+    production_Area numeric(6,2) not null, 
+    insurance numeric(3), 
+	
+    primary key( survey_Number , crop_Name , season , harvest_Year ),
+	foreign key( survey_Number ) references Land( survey_Number ) on delete cascade on update cascade,
+	foreign key( crop_Name ) references Crops( crop_Name ) on delete cascade on update cascade,
+	
+	check( insurance >= 0  and insurance <= 100 ),
+	check( cost_Of_Production >= 0 and produced_Amount >= 0 and production_Area > 0 )
+);
+
+create table Offers(
+    crop_Name varchar(20), 
+    market_Id varchar(5), 
+    season varchar(20),
+    offering_Year integer,
+	price numeric(4) not null,
+    
+	primary key( crop_Name , market_Id , season , offering_Year ),
+	foreign key( crop_Name ) references Crops( crop_Name ) on delete cascade on update cascade,
+	foreign key( market_Id ) references marketing_Yard( market_Id ) on delete cascade on update cascade,
+	
+	check( price > 0 )
+);
+
+create table Sold_At(
+	survey_Number varchar(5),
+	crop_Name varchar(30),
+	market_Id varchar(5),
+	season varchar(30),
+	selling_Year integer,
+	selling_price numeric(7) not null,
+	
+	primary key( survey_Number , crop_Name , market_Id , season , selling_Year ),
+	foreign key( survey_Number , crop_Name , season , selling_Year ) references Harvest( survey_Number , crop_Name , season , harvest_Year ),
+	foreign key( market_Id ) references Marketing_Yard( market_Id ),
+	
+	check( selling_price > 0 )
+);
+
+create table Pesticide(
+    pesticide_Name varchar(20), 
+    price numeric(4) not null,
+    environmental_Impact varchar(20) not null,
+	
+	primary key( pesticide_Name ),
+	
+	check( price > 0 )
+);
+
+create table Pest(
+    pest_Name varchar(20),
+    description text,
+	
+	primary key( pest_Name )
+);
+
+create table Treated_By(
+    pest_Name varchar(20), 
+    pesticide_Name varchar(20),
+	
+	primary key( pest_Name , pesticide_Name ),
+	foreign key( pest_Name ) references Pest( pest_Name ) on delete cascade on update cascade,
+	foreign key( pesticide_Name ) references Pesticide( pesticide_Name ) on delete cascade on update cascade
+);
+
+create table Present_In(
+    survey_Number varchar(5), 
+    pest_Name varchar(20),
+	
+	primary key( survey_Number , pest_Name ),
+	foreign key( survey_Number ) references Land( survey_Number ) on delete cascade on update cascade,
+	foreign key( pest_Name ) references Pest( pest_Name ) on delete cascade on update cascade
+);
+
+create table Damages(
+    pest_Name varchar(20), 
+    crop_Name varchar(20),
+	
+	primary key( pest_Name , crop_Name ),
+	foreign key( pest_Name ) references Pest( pest_Name ) on delete cascade on update cascade,
+	foreign key( crop_Name ) references Crops( crop_Name ) on delete cascade on update cascade
+);
+
+create table Yojana(
+	yojana_Name varchar(30),
+	category varchar(20) not null,
+	region_Of_Operation varchar(30) not null,
+	allocated_Budget numeric(10) not null,
+	applicable_From_Year integer not null,
+	applicable_Till_Year integer,
+	
+	primary key( yojana_Name ),
+	
+	check ( allocated_Budget > 0 )
+);
+
+create table Beneficiary_Of(
+	farmer_Id varchar(5),
+	yojana_Name varchar(30),
+	beneficial_Year integer,
+	financial_Aid numeric(7) not null,
+	
+	primary key( farmer_Id , yojana_Name , beneficial_Year ),
+	foreign key( farmer_Id ) references Farmer( farmer_Id ) on delete cascade on update cascade,
+	foreign key( yojana_Name ) references Yojana( yojana_Name ) on delete cascade on update cascade,
+	
+	check ( financial_Aid > 0 )
+);

@@ -1,0 +1,38 @@
+set search_path to arms;
+drop function if exists schichay_yojana_guj();
+
+create or replace function schichay_yojana_guj( fid farmer.farmer_id%type )
+	returns beneficiary_of.financial_aid%type
+	
+as $BODY$
+declare 
+	aid beneficiary_of.financial_aid%type := 0;
+	owned_land_area land.total_cultivable_area%type;
+	income farmer.total_household_income%type;
+	income_thresold farmer.total_household_income%type := 250000;
+	aid_per_unit_area beneficiary_of.financial_aid%type := 5000;
+	max_aid_amount beneficiary_of.financial_aid%type := 50000;
+	
+begin
+	
+	select sum(total_cultivable_area)
+	into owned_land_area
+	from farmer natural join land natural join states
+	where farmer_id = fid and irrigation_method <> 'drip irrigation' and states.state = 'Gujarat';
+	
+	owned_land_area := coalesce( owned_land_area , 0 );
+	
+	select total_household_income 
+	into income
+	from farmer 
+	where farmer_id = fid;
+	
+	income := coalesce( income , 0 );
+		
+	if owned_land_area <> 0 and income <= income_thresold then
+		aid = least( owned_land_area * aid_per_unit_area , max_aid_amount );
+	end if;
+	
+	return aid;
+	
+end $BODY$ language 'plpgsql'

@@ -1,0 +1,60 @@
+set search_path to arms;
+drop trigger if exists check_budget on beneficiary_of;
+drop function if exists check_update_beneficiary_of();
+
+create or replace function check_update_beneficiary_of()
+	returns trigger
+	
+as $BODY$
+declare 
+	aid_given beneficiary_of.financial_aid%type;
+	total_budget yojana.allocated_budget%type;
+	
+begin
+	select allocated_budget
+	into total_budget
+	from yojana 
+	where yojana_name = new.yojana_name;
+	
+	select sum(financial_aid)
+	into aid_given
+	from beneficiary_of
+	group by yojana_name, beneficial_year
+	having yojana_name = new.yojana_name and beneficial_year = new.beneficial_year;
+	
+	aid_given := coalesce( aid_given , 0 );
+	total_budget := coalesce( total_budget , 0 );
+	
+	if TG_OP = 'INSERT' then 
+		if total_budget < aid_given + new.financial_aid then
+			raise exception 'Invalid entry!';
+		end if;
+		
+		return new;
+		
+	elsif TG_OP = 'UPDATE' then
+		if old.yojana_name = new.yojana_name then
+			if total_budget < aid_given + new.financial_aid - old.financial_aid then
+				raise exception 'Invalid entry!';
+			end if;
+		
+			return new;
+		else
+			if total_budget < aid_given + new.financial_aid then
+				raise exception 'Invalid entry!';
+			end if;
+		
+			return new;
+		end if;
+		
+	end if;
+	
+	return null;
+	
+end $BODY$ language 'plpgsql';
+
+create trigger check_budget
+before insert or update 
+on beneficiary_of
+for each row
+execute procedure check_update_beneficiary_of();

@@ -1,0 +1,73 @@
+set search_path to arms;
+drop function if exists renew_beneficiary_list();
+
+create or replace function renew_beneficiary_list()
+	returns integer
+	
+as $BODY$
+declare 
+	total_renewed integer := 0;
+	aid beneficiary_of.financial_aid%type := 0;
+	curr_year integer;
+	curr_month integer;
+	curr_season harvest.season%type;
+	
+	
+	r record;
+begin
+	curr_year := cast(date_part( 'year' , current_date ) as integer);
+	curr_month := cast(date_part( 'month' , current_date ) as integer);
+	
+	if curr_month between 3 and 6 then
+		curr_season := 'summer';
+	elsif curr_month between 7 and 10 then
+		curr_season := 'monsoon';
+	else
+		curr_season := 'winter';
+	end if;
+	
+	for r in
+	select farmer_id, yojana_name
+	from beneficiary_of natural join yojana
+	where beneficial_year = curr_year - 1 and (applicable_till_year is null or applicable_till_year >= curr_year)
+	loop
+		case r.yojana_name
+		when 'kishan_samridhi_yojana'::varchar then
+			select * into aid from kishan_samridhi_yojana( r.farmer_id );
+			if aid > 0 then
+				begin
+					insert into beneficiary_of values( r.farmer_id , r.yojana_name , curr_year , aid );
+					total_renewed := total_renewed + 1;
+				exception when unique_violation then
+        			raise notice 'violation % %', r.farmer_id , r.yojana_name;
+				end;
+			end if;
+			
+		when 'paak_bima_yojana'::varchar then
+			select * into aid from paak_bima_yojana( r.farmer_id , curr_season , curr_year );
+			if aid > 0 then
+				begin
+					insert into beneficiary_of values( r.farmer_id , r.yojana_name , curr_year , aid );
+					total_renewed := total_renewed + 1;
+				exception when unique_violation then
+        			raise notice 'violation % %', r.farmer_id , r.yojana_name;
+				end;
+			end if;
+			
+		when 'pest_control_yojana'::varchar then
+			select * into aid from pest_control_yojana( r.farmer_id , curr_season , curr_year );
+			if aid > 0 then
+				begin
+					insert into beneficiary_of values( r.farmer_id , r.yojana_name , curr_year , aid );
+					total_renewed := total_renewed + 1;
+				exception when unique_violation then
+        			raise notice 'violation % %', r.farmer_id , r.yojana_name;
+				end;
+			end if;
+		else
+		end case;
+	end loop;
+	
+	return total_renewed;
+	
+end $BODY$ language 'plpgsql'

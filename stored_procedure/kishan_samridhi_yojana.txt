@@ -1,0 +1,38 @@
+set search_path to arms;
+drop function if exists kishan_samridhi_yojana();
+
+create or replace function kishan_samridhi_yojana( fid farmer.farmer_id%type )
+	returns beneficiary_of.financial_aid%type
+	
+as $BODY$
+declare 
+	aid beneficiary_of.financial_aid%type := 0;
+	per_person_income beneficiary_of.financial_aid%type := 10000;
+	min_total_income beneficiary_of.financial_aid%type := 25000;
+	per_person_aid beneficiary_of.financial_aid%type := 2000;
+	max_aid_amount beneficiary_of.financial_aid%type := 10000;
+	nem farmer.number_of_earning_members%type;
+	nnem farmer.number_of_nonearning_members%type;
+	income farmer.total_household_income%type;
+	
+begin
+
+	select number_of_earning_members, number_of_nonearning_members, total_household_income
+	into nem, nnem, income
+	from farmer
+	where farmer_id = fid;
+	
+	nem := coalesce( nem , 0 );
+	nnem := coalesce( nnem , 0 );
+	
+	if income is not NULL then
+		if income <= min_total_income then
+			aid := nem * per_person_aid;
+		elsif nnem*nem <> 0 and income / (nnem + nem) <= per_person_income then
+			aid := least( nnem * per_person_aid , max_aid_amount);
+		end if;
+	end if;
+	
+	return aid;
+	
+end $BODY$ language 'plpgsql'
